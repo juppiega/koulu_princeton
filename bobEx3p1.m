@@ -1,78 +1,116 @@
-function [state_history] = lorenz (X0, r, dt, end_time)
-% [state_history] = lorenz (X0, r, dt, end_time)
-%
-% Arguments:
-% X0 : Initial position, e.g. X0 = [10, 10, 10]
-% r  : Constant parameter, determining colution characteristics (~25 for chaos)
-% dt : Timestep (0.03 recommended)
-% end_time : Length of the simulation in units of time
-%
-% Output:
-% state_history : Full history of the model state (dimension: 3 x [NUM_STEPS] array)
+function [] = bobEx3p1 ()
 
+% Part a)
 
-if isrow(X0); X0 = X0; end
+init_fun = @(x) sin(2*pi*x).^6;
+phase_speed = 0.1;
+end_time = 50;
+courant = 0.1;
 
-state_history = solver(X0, r, dt, end_time);
+dx = [1/20, 1/40, 1/80, 1/160];
+for i = 1:length(dx)
+    rms(i) = solver(init_fun, courant, phase_speed, dx(i), end_time);
+end
 
-figure;
-plot(state_history(1,:), state_history(2,:),'.'); 
-xlabel('x')
-ylabel('y')
+display((log(rms(end-1)) - log(rms(end))) / (log(dx(end-1)) - log(dx(end))))
+fourth_order_line = exp(4*(log(dx) - log(dx(end))) + log(rms(end)));
 
 figure;
-plot(state_history(1,:), state_history(3,:),'.');
-xlabel('x')
-ylabel('z')
+loglog(dx, fourth_order_line, 'linewidth', 2.0, 'linestyle', '--','color','k');
+hold all
+loglog(dx, rms, 'linewidth', 2.0,'color','k');
+xlabel('dx','fontsize',15)
+ylabel('RMSE','fontsize',15)
+set(gca,'fontsize',15)
+legend('O(dx^4)', 'Actual','location','northwest')
+
+% Part b)
+
+dx = 1/20;
+courant = [0.1, 0.2, 0.4, 0.8];
+for i = 1:length(courant)
+    rms(i) = solver(init_fun, courant(i), phase_speed, dx, end_time);
+end
+
+figure;
+loglog(courant(1:3), rms(1:3), 'linewidth', 2.0,'color','k');
+xlabel('Courant number','fontsize',15)
+ylabel('RMSE','fontsize',15)
+title('dx = 1/20','fontsize',15)
+set(gca,'fontsize',15)
+
+% Part c)
+
+dx = 1/80;
+courant = [0.1, 0.2, 0.4, 0.8];
+for i = 1:length(courant)
+    rms(i) = solver(init_fun, courant(i), phase_speed, dx, end_time);
+end
+
+figure;
+loglog(courant(1:3), rms(1:3), 'linewidth', 2.0,'color','k');
+xlabel('Courant number','fontsize',15)
+ylabel('RMSE','fontsize',15)
+title('dx = 1/80','fontsize',15)
+set(gca,'fontsize',15)
+
 
 end
 
-function state_history = solver(X0, r, dt, end_time)
+function rms = solver(init_fun, courant, phase_speed, dx, end_time)
 
-X = X0;
-tendency = zeros(3,3);
+x = (0:dx:1-dx)';
+dt = courant * dx / phase_speed;
+
+solution = init_fun(x);
+tendency = zeros(length(x),3);
 CURRENT = 3; PREVIOUS = 2; TWO_STEPS_AGO = 1;
-num_steps = max(ceil(end_time/dt), 2);
-state_history = zeros(3, num_steps); state_history(:,1) = X;
-step_num = 1;
+
+num_steps = max(round(end_time/dt), 2);
+step_num = 0;
 
 % Take two RK3 steps
 for i = 1:2
-    tendency1 = computeDX(X, r);
+    tendency1 = compute_tendency(solution, phase_speed, dx);
     tendency(:,i) = tendency1; % Tendencies required by the Adams-Bashforth 
     
-    pred_X1 = X + dt * tendency1 / 3;
-    tendency2 = computeDX(pred_X1, r);
+    pred_sol1 = solution + dt * tendency1 / 3;
+    tendency2 = compute_tendency(pred_sol1, phase_speed, dx);
     
-    pred_X2 = pred_X1 + dt * (tendency2 - (5/9)*tendency1) * (15/16);
-    tendency3 = computeDX(pred_X2, r);
+    pred_sol2 = pred_sol1 + dt * (tendency2 - (5/9)*tendency1) * (15/16);
+    tendency3 = compute_tendency(pred_sol2, phase_speed, dx);
     
-    X = pred_X2 + dt * (tendency3 - (153/128)*(tendency2 - (5/9)*tendency1)) * (8/15);
+    solution = pred_sol2 + dt * (tendency3 - (153/128)*(tendency2 - (5/9)*tendency1)) * (8/15);
     
     step_num = step_num + 1;
-    state_history(:, step_num) = X;
 end
 
 % AB3
 while step_num < num_steps
-    tendency(:,CURRENT) = computeDX(X, r);
+    tendency(:,CURRENT) = compute_tendency(solution, phase_speed, dx);
     
-    X = X + dt * (23*tendency(:,CURRENT) - 16*tendency(:,PREVIOUS) + 5*tendency(:,TWO_STEPS_AGO)) / 12;
+    solution = solution + dt * (23*tendency(:,CURRENT) - 16*tendency(:,PREVIOUS) + 5*tendency(:,TWO_STEPS_AGO)) / 12;
     
     tendency(:,TWO_STEPS_AGO) = tendency(:,PREVIOUS);
     tendency(:,PREVIOUS) = tendency(:,CURRENT);
-    
+        
     step_num = step_num + 1;
-    state_history(:, step_num) = X;
+    
 end
 
+exact = init_fun(x - phase_speed*end_time);
+rms = sqrt(mean((solution - exact).^2));
+
 end
 
-function dX = computeDX(X, r)
+function dt_solution = compute_tendency(solution, phase_speed, dx)
 
-dX = zeros(3,1);
-dX(1) = -3*(X(1)-X(2));
-dX(2) = -X(1)*X(3) + r*X(1) - X(2);
-dX(3) = X(1)*X(2) - X(3);
+F = zeros(length(solution) + 4, 1);
+F(1:2) = solution(end-1:end);
+F(end-1:end) = solution(1:2);
+F(3:end-2) = solution;
+
+dt_solution = -phase_speed * (F(1:end-4) - 8*F(2:end-3) + 8*F(4:end-1) - F(5:end)) / (12*dx);
+
 
 end
