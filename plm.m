@@ -1,9 +1,10 @@
-function [] = plm_with_easter (dx, USE_STRANG_SPLITTING)
-% plm_with_easter (dx, USE_STRANG_SPLITTING)
+function [] = plm (dx, USE_STRANG_SPLITTING, USE_EASTER)
+% plm (dx, USE_STRANG_SPLITTING, USE_EASTER)
 %
 % Arguments:
 % dx                    : (OPTIONAL) Grid spacing (Default: 0.02)
 % USE_STRANG_SPLITTING  : (OPTIONAL) Whether to use Strang splitting (Default: true)
+% USE_EASTER            : (OPTIONAL) Whether to use Easter's pseudocompressibility approach (Default: true)
 
 if nargin == 0
     dx = 0.02;
@@ -11,23 +12,27 @@ end
 if nargin <= 1
     USE_STRANG_SPLITTING = true;
 end
+if nargin <= 2
+    USE_EASTER = true;
+end
 
 % Initialization
 [X, Y, tracer, dt] = initialize(dx);
+plot_tracer(X, Y, tracer, 0)
 
 % Advect 2.5 units and plot
-tracer = advect_tracer(X, Y, tracer, dx, dt, 0, 2.5, USE_STRANG_SPLITTING);
+tracer = advect_tracer(X, Y, tracer, dx, dt, 0, 2.5, USE_STRANG_SPLITTING, USE_EASTER);
 plot_tracer(X, Y, tracer, 2.5)
 
 % Advect from time 2.5 to 5 and plot
-tracer = advect_tracer(X, Y, tracer, dx, dt, 2.5, 5, USE_STRANG_SPLITTING);
+tracer = advect_tracer(X, Y, tracer, dx, dt, 2.5, 5, USE_STRANG_SPLITTING, USE_EASTER);
 plot_tracer(X, Y, tracer, 5)
 
 
 end
 
 % ===============================================================================================
-function tracer = advect_tracer(X, Y, tracer, dx, dt, time_begin, time_end, USE_STRANG_SPLITTING)
+function tracer = advect_tracer(X, Y, tracer, dx, dt, time_begin, time_end, USE_STRANG_SPLITTING, USE_EASTER)
 
 time = time_begin;
 first_x_then_y = true;
@@ -54,12 +59,12 @@ while time < time_end
     
     % Advance in time by reversing the order of integration every timestep (Strang splitting)
     if first_x_then_y
-        [tracer, rho, tracer_rho] = compute_x_direction(dx, dt, u, tracer, rho, tracer_rho);    
-        tracer                    = compute_y_direction(dx, dt, v, tracer, rho, tracer_rho);
+        [tracer, rho, tracer_rho] = compute_x_direction(dx, dt, u, tracer, rho, tracer_rho, USE_EASTER);    
+        tracer                    = compute_y_direction(dx, dt, v, tracer, rho, tracer_rho, USE_EASTER);
         first_x_then_y = false;
     else
-        [tracer, rho, tracer_rho] = compute_y_direction(dx, dt, v, tracer, rho, tracer_rho);
-        tracer                    = compute_x_direction(dx, dt, u, tracer, rho, tracer_rho); 
+        [tracer, rho, tracer_rho] = compute_y_direction(dx, dt, v, tracer, rho, tracer_rho, USE_EASTER);
+        tracer                    = compute_x_direction(dx, dt, u, tracer, rho, tracer_rho, USE_EASTER); 
         first_x_then_y = true;
     end
     
@@ -70,29 +75,37 @@ end
 end
 
 % ==========================================================================================
-function [tracer, rho, tracer_rho] = compute_x_direction(dx, dt, u, tracer, rho, tracer_rho)
+function [tracer, rho, tracer_rho] = compute_x_direction(dx, dt, u, tracer, rho, tracer_rho, USE_EASTER)
 
 % Compute one-dimensional scalar flux
 F_x = compute_fluxes(dx, dt, u, tracer);
 
-% Update pseudodensity
-rho = rho - (dt/dx) * (u(:,2:end) - u(:,1:end-1)); % Durran's equation (5.95)
-% Update tracer mass
-tracer_rho = tracer_rho - (dt/dx) * (F_x(:,2:end) - F_x(:,1:end-1)); % eq. (5.96)
-% Update tracer concentrations
-tracer(2:end-1, 2:end-1) = tracer_rho ./ rho; % eq. (5.97)
+if USE_EASTER
+    % Update pseudodensity
+    rho = rho - (dt/dx) * (u(:,2:end) - u(:,1:end-1)); % Durran's equation (5.95)
+    % Update tracer mass
+    tracer_rho = tracer_rho - (dt/dx) * (F_x(:,2:end) - F_x(:,1:end-1)); % eq. (5.96)
+    % Update tracer concentrations
+    tracer(2:end-1, 2:end-1) = tracer_rho ./ rho; % eq. (5.97)
+else
+    tracer(2:end-1, 2:end-1) = tracer(2:end-1, 2:end-1) - (dt/dx) * (F_x(:,2:end) - F_x(:,1:end-1));
+end
 
 end
 
 % ==========================================================================================
-function [tracer, rho, tracer_rho] = compute_y_direction(dx, dt, v, tracer, rho, tracer_rho)
+function [tracer, rho, tracer_rho] = compute_y_direction(dx, dt, v, tracer, rho, tracer_rho, USE_EASTER)
 
 % With some transpose-magic, the same flux-computation function can be used for both u and v
 F_y = compute_fluxes(dx, dt, v', tracer')';
 
-rho = rho - (dt/dx) * (v(2:end,:) - v(1:end-1,:)); % Durran's equation (5.98)
-tracer_rho = tracer_rho - (dt/dx) * (F_y(2:end,:) - F_y(1:end-1,:)); % eq. (5.99)
-tracer(2:end-1, 2:end-1) = tracer_rho ./ rho; % eq. (5.100)
+if USE_EASTER
+    rho = rho - (dt/dx) * (v(2:end,:) - v(1:end-1,:)); % Durran's equation (5.98)
+    tracer_rho = tracer_rho - (dt/dx) * (F_y(2:end,:) - F_y(1:end-1,:)); % eq. (5.99)
+    tracer(2:end-1, 2:end-1) = tracer_rho ./ rho; % eq. (5.100)
+else
+    tracer(2:end-1, 2:end-1) = tracer(2:end-1, 2:end-1) - (dt/dx) * (F_y(2:end,:) - F_y(1:end-1,:));
+end
 
 end
 
