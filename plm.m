@@ -204,5 +204,7 @@ set (gca, 'color', 'b')
 ylabel('Y', 'fontsize', 15)
 xlabel('X', 'fontsize', 15)
 colorbar('fontsize', 15)
+caxis([0,1])
+display(['Maximum value @ t = ', num2str(t), ': ', num2str(max(tracer(:)))])
 
 end
