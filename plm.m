@@ -195,6 +195,7 @@ end
 % ===================================
 function plot_tracer(X, Y, tracer, t)
 
+% Plot
 figure;
 surf(X, Y, tracer, 'edgecolor','none')
 view(2)
@@ -205,6 +206,13 @@ ylabel('Y', 'fontsize', 15)
 xlabel('X', 'fontsize', 15)
 colorbar('fontsize', 15)
 caxis([0,1])
+
+% Analyze
+format compact
 display(['Maximum value @ t = ', num2str(t), ': ', num2str(max(tracer(:)))])
+cell_area = (X(1,2) - X(1,1)) * (Y(2,1) - Y(1,1));
+total_tracer_amount = cell_area * sum(tracer(:));
+display(['Total amount @ t = ', num2str(t), ': ', num2str(total_tracer_amount)])
+fprintf('\n')
 
 end
