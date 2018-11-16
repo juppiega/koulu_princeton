@@ -115,9 +115,6 @@ function slope = compute_limited_slope(tracer)
 % (first order forward and backward, and second order centered).
 
 N = size(tracer,1);
-slope_centered = zeros(N-2,N-2);
-slope_right = zeros(N-2,N-2);
-slope_left = zeros(N-2,N-2);
 
 % Compute the three slopes
 slope_centered = (tracer(2:end-1,3:end) - tracer(2:end-1,1:end-2)) / 2;
@@ -157,9 +154,6 @@ end
 % ===========================================
 function [u, v] = described_wind(t, X, Y, dx)
 % Described wind components
-
-u = zeros(size(X,1)-2, size(X,2)-1);
-v = zeros(size(X,1)-1, size(X,2)-2);
 
 % Sample at interfaces.
 X_i = X + 0.5*dx;
