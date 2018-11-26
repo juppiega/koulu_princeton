@@ -206,7 +206,7 @@ format compact
 display(['Maximum value @ t = ', num2str(t), ': ', num2str(max(tracer(:)))])
 cell_area = (X(1,2) - X(1,1)) * (Y(2,1) - Y(1,1));
 total_tracer_amount = cell_area * sum(tracer(:));
-display(['Total amount @ t = ', num2str(t), ': ', num2str(total_tracer_amount)])
+display(['Total amount @ t = ', num2str(t), ': ', num2str(total_tracer_amount, '%20.15e\n')])
 fprintf('\n')
 
 end
